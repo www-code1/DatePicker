@@ -159,10 +159,6 @@
     const app = initializeApp(firebaseConfig);
     const analytics = getAnalytics(app);
 
-    // ====== 2) BASIC APP STATE ======
-    const auth = firebase.auth();
-    const db = firebase.database();
-
     const els = {
       landing: document.getElementById('landing'),
       calendarSection: document.getElementById('calendarSection'),
