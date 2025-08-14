@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hangout Calendar</title>
+  <meta name="description" content="Create a shareable calendar so friends can pick dates to hang out." />
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #121318;
+      --muted: #8b93a1;
+      --text: #e6e9ef;
+      --accent: #6ea8fe;
+      --accent-2: #b392f0;
+      --danger: #ff6b6b;
+      --ok: #6ede8a;
+      --card: #161821;
+      --border: #232533;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg, var(--bg) 0%, #0e1016 100%);
+      color: var(--text);
+      min-height: 100dvh;
+      display: grid; place-items: start center;
+    }
+    .container { width: min(100%, 980px); padding: 24px; }
+    header { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom: 16px; }
+    .brand { display:flex; gap:10px; align-items:center; }
+    .logo { width: 36px; height: 36px; border-radius: 12px; background: radial-gradient(100% 100% at 30% 20%, var(--accent), var(--accent-2)); box-shadow: 0 8px 24px rgba(110,168,254,.25); }
+    .title { font-weight: 700; letter-spacing: .2px; }
+    .card { background: var(--card); border:1px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .actions { display:flex; gap:8px; flex-wrap: wrap; }
+    button, .btn { cursor:pointer; border:none; border-radius: 12px; padding: 10px 14px; font-weight:600; color: #0b1020; background: var(--text); transition: transform .05s ease; }
+    button:hover, .btn:hover { transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: var(--text); border:1px solid var(--border); }
+    .btn-accent { background: var(--accent); color: #071022; }
+    .btn-good { background: var(--ok); }
+    .btn-danger { background: var(--danger); color: white; }
+    .muted { color: var(--muted); }
+    .grid { display:grid; gap:8px; }
+    .calendar { margin-top: 12px; }
+    .cal-header { display:flex; align-items:center; justify-content:space-between; padding: 8px 6px; }
+    .cal-month { font-size: 20px; font-weight: 700; }
+    .cal-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .dow { text-align:center; font-size: 12px; color: var(--muted); }
+    .day { position:relative; min-height: 78px; border-radius: 12px; border:1px solid var(--border); background: linear-gradient(180deg, #10131b, #0f1218); padding: 8px; overflow: hidden; }
+    .day .num { font-size: 12px; color: var(--muted); }
+    .day button.toggle { position:absolute; inset:0; width:100%; height:100%; background:transparent; border:none; cursor:pointer; }
+    .chip { display:inline-flex; align-items:center; gap:6px; background: #0f1420; border:1px solid var(--border); color: var(--text); border-radius: 999px; padding: 6px 10px; font-size: 12px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; border-radius: 10px; padding: 4px 8px; border:1px solid var(--border); background:#0f1420; color:var(--text); }
+    .stack { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .heat { position:absolute; inset:0; opacity:.15; }
+    .legend { display:flex; gap:8px; align-items:center; }
+    .legend .box { width: 16px; height: 16px; border-radius: 4px; border:1px solid var(--border); }
+    .footer { margin-top: 14px; font-size: 12px; color: var(--muted); }
+    .hidden { display:none !important; }
+    .inline { display:inline; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    input[type="text"], input[type="url"] { background:#0f1420; border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:12px; outline:none; width:100%; }
+    .grow { flex: 1 1 auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <div class="title">Hangout Calendar</div>
+          <div class="muted" style="font-size:12px">Create a key and share the URL so friends can pick dates.</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="createBtn" class="btn-accent">＋ Create Calendar</button>
+        <button id="shareBtn" class="btn-ghost">Share Link</button>
+        <button id="copyBtn" class="btn-ghost">Copy Link</button>
+      </div>
+    </header>
+
+    <!-- Landing (no key yet) -->
+    <section id="landing" class="card">
+      <h2 style="margin:0 0 8px 0">Start a new project</h2>
+      <p class="muted" style="margin:0 0 12px 0">Click <strong>Create Calendar</strong>. We’ll generate a unique key like <span class="pill"><code>/abcdef12</code></span> and redirect you to <span class="pill"><code>https://your-domain.com/abcdef12</code></span>. Share that link so everyone can mark when they’re free.</p>
+      <div class="row">
+        <label class="chip" for="hostName">Your name</label>
+        <input id="hostName" type="text" placeholder="e.g. Alex" style="max-width:280px"/>
+      </div>
+    </section>
+
+    <!-- Calendar (when a key exists in the URL) -->
+    <section id="calendarSection" class="card hidden">
+      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
+        <div class="stack">
+          <span class="chip">Key: <code id="keyLabel">—</code></span>
+          <span class="chip">Project: <code>calendar</code></span>
+        </div>
+        <div class="row">
+          <label class="chip" for="userName">Your name</label>
+          <input id="userName" type="text" placeholder="e.g. Sam" style="max-width:220px"/>
+          <button id="saveName" class="btn">Save</button>
+        </div>
+      </div>
+
+      <div class="cal-header">
+        <button id="prevMonth" class="btn-ghost">◀</button>
+        <div class="cal-month" id="monthLabel">—</div>
+        <button id="nextMonth" class="btn-ghost">▶</button>
+      </div>
+
+      <div class="cal-grid calendar" id="calendar"></div>
+
+      <div class="row" style="justify-content:space-between; margin-top:10px">
+        <div class="legend">
+          <div class="box" style="background:#1f6feb"></div><span class="muted">more people free</span>
+          <div class="box" style="background:#263449"></div><span class="muted">fewer</span>
+        </div>
+        <div class="stack">
+          <span class="pill" id="participantsCount">0 people</span>
+          <span class="pill" id="selectedDateLabel" hidden>—</span>
+        </div>
+      </div>
+
+      <div id="whoList" class="footer"></div>
+    </section>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+
+  <script>
+    // ====== 1) CONFIGURE FIREBASE ======
+    // Create a Firebase project (free), enable Realtime Database (in test/"true" rules during dev),
+    // turn on Anonymous Authentication, and paste your config below.
+    // Docs: https://firebase.google.com/docs
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // ====== 2) BASIC APP STATE ======
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    const els = {
+      landing: document.getElementById('landing'),
+      calendarSection: document.getElementById('calendarSection'),
+      calendar: document.getElementById('calendar'),
+      monthLabel: document.getElementById('monthLabel'),
+      keyLabel: document.getElementById('keyLabel'),
+      participantsCount: document.getElementById('participantsCount'),
+      whoList: document.getElementById('whoList'),
+      selectedDateLabel: document.getElementById('selectedDateLabel')
+    };
+
+    const btns = {
+      create: document.getElementById('createBtn'),
+      share: document.getElementById('shareBtn'),
+      copy: document.getElementById('copyBtn'),
+      prev: document.getElementById('prevMonth'),
+      next: document.getElementById('nextMonth'),
+      saveName: document.getElementById('saveName')
+    };
+
+    const inputs = {
+      hostName: document.getElementById('hostName'),
+      userName: document.getElementById('userName')
+    };
+
+    // Persist name locally for convenience
+    inputs.hostName.value = localStorage.getItem('hc_name') || '';
+    inputs.userName.value = localStorage.getItem('hc_name') || '';
+    btns.saveName.addEventListener('click', () => {
+      const v = inputs.userName.value.trim();
+      if (v) { localStorage.setItem('hc_name', v); toast(`Saved name: ${v}`); }
+    });
+
+    // ====== 3) ROUTING (KEY IN PATH) ======
+    function getKeyFromPath() {
+      const path = (location.pathname || '/').replace(/\/+$/, '');
+      const seg = path.split('/').filter(Boolean)[0];
+      return seg || null;
+    }
+
+    function keyUrl(key) { return `${location.origin}/${key}`; }
+
+    function show(view) {
+      if (view === 'landing') { els.landing.classList.remove('hidden'); els.calendarSection.classList.add('hidden'); }
+      else { els.calendarSection.classList.remove('hidden'); els.landing.classList.add('hidden'); }
+    }
+
+    function randomKey(len=8) {
+      const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+      let out = ''; for (let i=0;i<len;i++) out += chars[Math.floor(Math.random()*chars.length)];
+      return out;
+    }
+
+    btns.create.addEventListener('click', async () => {
+      const name = (inputs.hostName.value || '').trim() || 'Host';
+      const key = randomKey(8);
+      // Create minimal project record then redirect
+      await ensureAuth();
+      await db.ref(`/projects/${key}`).set({
+        project: 'calendar',
+        createdAt: Date.now(),
+        hostName: name
+      });
+      location.href = keyUrl(key);
+    });
+
+    btns.share.addEventListener('click', () => {
+      const url = location.href;
+      if (navigator.share) {
+        navigator.share({ title: 'Hangout Calendar', text: 'Pick when you can hang out', url });
+      } else {
+        copy(url); toast('Link copied');
+      }
+    });
+
+    btns.copy.addEventListener('click', () => { copy(location.href); toast('Link copied'); });
+
+    function copy(text) { navigator.clipboard?.writeText(text); }
+
+    function toast(msg) {
+      const t = document.createElement('div');
+      t.textContent = msg; t.style.position='fixed'; t.style.bottom='16px'; t.style.left='50%'; t.style.transform='translateX(-50%)'; t.style.padding='10px 14px'; t.style.borderRadius='12px'; t.style.background='rgba(15,20,32,.9)'; t.style.border='1px solid var(--border)'; t.style.color='var(--text)'; t.style.zIndex='9999'; t.style.boxShadow='0 10px 30px rgba(0,0,0,.35)';
+      document.body.appendChild(t); setTimeout(()=>t.remove(), 1800);
+    }
+
+    // ====== 4) AUTH ======
+    async function ensureAuth() {
+      if (auth.currentUser) return auth.currentUser;
+      return auth.signInAnonymously().then(r => r.user);
+    }
+
+    // ====== 5) CALENDAR RENDERING ======
+    let current = new Date();
+    function fmtYMD(d) { return d.toISOString().slice(0,10); }
+    function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+    function buildCalendarGrid(year, month) { // month: 0-11
+      els.calendar.innerHTML = '';
+      const first = new Date(year, month, 1);
+      const startWeekday = (first.getDay() + 6) % 7; // Mon=0
+      const daysInMonth = new Date(year, month+1, 0).getDate();
+
+      // DOW header
+      const dows = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      dows.forEach(d => {
+        const el = document.createElement('div'); el.className = 'dow'; el.textContent = d; els.calendar.appendChild(el);
+      });
+
+      // Empty cells before 1st
+      for (let i=0; i<startWeekday; i++) {
+        const pad = document.createElement('div'); pad.className = 'day'; pad.style.visibility='hidden'; els.calendar.appendChild(pad);
+      }
+
+      // Days
+      for (let day=1; day<=daysInMonth; day++) {
+        const cell = document.createElement('div'); cell.className = 'day';
+        const num = document.createElement('div'); num.className='num'; num.textContent = day;
+        const heat = document.createElement('div'); heat.className='heat';
+        const btn = document.createElement('button'); btn.className='toggle'; btn.title='Toggle your availability';
+        const ymd = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        btn.dataset.ymd = ymd;
+        cell.appendChild(heat); cell.appendChild(num); cell.appendChild(btn);
+        els.calendar.appendChild(cell);
+      }
+
+      els.monthLabel.textContent = new Date(year, month, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' });
+    }
+
+    btns.prev.addEventListener('click', () => { current.setMonth(current.getMonth()-1); renderMonth(); });
+    btns.next.addEventListener('click', () => { current.setMonth(current.getMonth()+1); renderMonth(); });
+
+    // ====== 6) DATA BINDING ======
+    let PROJECT_KEY = null;
+    let unsub = null;
+
+    function attachListeners(key) {
+      if (unsub) { unsub(); unsub = null; }
+      const ref = db.ref(`/projects/${key}`);
+      const availRef = ref.child('availability');
+
+      const handler = (snap) => {
+        const data = snap.val() || {};
+        paintAvailability(data);
+      };
+      availRef.on('value', handler);
+      unsub = () => availRef.off('value', handler);
+
+      // Who count
+      ref.child('participants').on('value', s => {
+        const n = s.val() ? Object.keys(s.val()).length : 0;
+        els.participantsCount.textContent = `${n} ${n === 1 ? 'person' : 'people'}`;
+      });
+    }
+
+    function paintAvailability(data) {
+      // data shape: { date: { name: true, ... }, ... }
+      const allBtns = Array.from(document.querySelectorAll('.day .toggle'));
+      const whoByDate = {};
+      allBtns.forEach(btn => {
+        const ymd = btn.dataset.ymd;
+        const who = data[ymd] ? Object.keys(data[ymd]) : [];
+        whoByDate[ymd] = who;
+        const cell = btn.parentElement;
+        const heat = cell.querySelector('.heat');
+        const n = who.length;
+        // Heat from 0..10 people
+        const pct = Math.min(1, n / 10);
+        const hue = 210; // blue
+        const alpha = 0.08 + pct * 0.6;
+        heat.style.background = `radial-gradient(120px 80px at 50% 60%, rgba(${hex2rgb('#1f6feb')}, ${alpha}), transparent 80%)`;
+        cell.title = n ? `${n} available: ${who.join(', ')}` : 'No one yet';
+      });
+
+      // If a date is selected, show its list
+      const sel = document.querySelector('.day.selected .toggle');
+      if (sel) updateWhoList(sel.dataset.ymd, whoByDate[sel.dataset.ymd] || []);
+    }
+
+    function hex2rgb(hex){
+      const n = parseInt(hex.slice(1), 16); return `${(n>>16)&255}, ${(n>>8)&255}, ${n&255}`;
+    }
+
+    async function toggleDate(ymd) {
+      const name = (inputs.userName.value || '').trim();
+      if (!name) { toast('Enter your name first'); return; }
+      await ensureAuth();
+      const ref = db.ref(`/projects/${PROJECT_KEY}/availability/${ymd}/${sanitize(name)}`);
+      const snap = await ref.get();
+      if (snap.exists()) await ref.remove(); else await ref.set(true);
+      // Track participant exists
+      await db.ref(`/projects/${PROJECT_KEY}/participants/${sanitize(name)}`).set(true);
+    }
+
+    function sanitize(s) { return s.replace(/[^a-z0-9_-]+/gi, '-').slice(0, 32); }
+
+    function updateWhoList(ymd, who) {
+      els.selectedDateLabel.hidden = false;
+      els.selectedDateLabel.textContent = new Date(ymd).toLocaleDateString(undefined, { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+      if (!who.length) { els.whoList.innerHTML = '<em class="muted">No one yet on this day.</em>'; return; }
+      els.whoList.innerHTML = 'Available: ' + who.map(n => `<span class="pill">${escapeHtml(n)}</span>`).join(' ');
+    }
+
+    function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+    function bindDayClicks() {
+      els.calendar.addEventListener('click', (e) => {
+        const btn = e.target.closest('button.toggle');
+        if (!btn) return;
+        // select
+        document.querySelectorAll('.day').forEach(d => d.classList.remove('selected'));
+        btn.parentElement.classList.add('selected');
+        const ymd = btn.dataset.ymd;
+        // Update who list from current tooltip quickly
+        const title = btn.parentElement.title;
+        const who = (title.includes('available:') ? title.split('available:')[1].trim() : '').split(/,\s*/).filter(Boolean);
+        updateWhoList(ymd, who);
+        // toggle state for me
+        toggleDate(ymd);
+      });
+    }
+
+    function renderMonth() {
+      buildCalendarGrid(current.getFullYear(), current.getMonth());
+      bindDayClicks();
+      // Re-attach listeners to repaint heat for this month
+      if (PROJECT_KEY) attachListeners(PROJECT_KEY);
+    }
+
+    // ====== 7) BOOT ======
+    async function boot() {
+      const key = getKeyFromPath();
+      if (!key) { show('landing'); return; }
+      PROJECT_KEY = key; els.keyLabel.textContent = key; show('calendar');
+      await ensureAuth();
+      renderMonth();
+      attachListeners(key);
+    }
+
+    boot();
+  </script>
+</body>
+</html>
